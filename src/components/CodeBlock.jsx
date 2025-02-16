@@ -54,7 +54,7 @@ const CodeBlock = ({ language, code, index, onCopy }) => {
               <PlayCircle className={`w-4 h-4 ${showPreview ? 'text-blue-400' : 'text-gray-400 group-hover:text-gray-300'}`} />
             </button>
           )}
-          {lineCount > 15 && (
+          {!showPreview && lineCount > 15 && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="p-1.5 hover:bg-gray-700 rounded-md transition-colors group"
@@ -71,75 +71,81 @@ const CodeBlock = ({ language, code, index, onCopy }) => {
       </div>
 
       {/* Content Area */}
-      <div className={showPreview ? 'grid grid-cols-2 divide-x divide-gray-700' : 'block'}>
-        {/* Code Section */}
-        <motion.div
-          layout
-          initial={false}
-          animate={{ 
-            height: isExpanded ? 'auto' : lineCount > 15 ? '300px' : 'auto',
-          }}
-          className="relative overflow-hidden"
-        >
-          <SyntaxHighlighter
-            language={language.toLowerCase()}
-            style={oneDark}
-            customStyle={{
-              margin: 0,
-              padding: '1rem',
-              background: 'transparent',
-              fontSize: '0.875rem',
-            }}
-            showLineNumbers
-            wrapLongLines
+      <AnimatePresence mode="wait">
+        {showPreview ? (
+          <motion.div
+            key="preview"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="min-h-[500px]"
           >
-            {code}
-          </SyntaxHighlighter>
-          
-          {!isExpanded && lineCount > 15 && (
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-900 to-transparent" />
-          )}
-        </motion.div>
-
-        {/* Preview Section */}
-        <AnimatePresence>
-          {showPreview && isJavaScript && (
+            <Sandpack
+              theme={{
+                ...nightOwl,
+                colors: {
+                  ...nightOwl.colors,
+                  surface1: '#1a1b26',
+                  surface2: '#1a1b26',
+                }
+              }}
+              template="react"
+              files={{
+                '/App.js': code,
+              }}
+              options={{
+                showNavigator: true,
+                showLineNumbers: true,
+                showInlineErrors: true,
+                wrapContent: true,
+                editorHeight: 500,
+                showTabs: false,
+                closableTabs: false,
+                classes: {
+                  'sp-wrapper': 'custom-wrapper',
+                  'sp-layout': 'custom-layout',
+                  'sp-editor': 'custom-editor',
+                },
+              }}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="code"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="min-h-[500px]"
+              layout
+              initial={false}
+              animate={{ 
+                height: isExpanded ? 'auto' : lineCount > 15 ? '300px' : 'auto',
+              }}
+              className="relative overflow-hidden"
             >
-              <Sandpack
-                theme={{
-                  ...nightOwl,
-                  colors: {
-                    ...nightOwl.colors,
-                    surface1: '#1a1b26',
-                    surface2: '#1a1b26',
-                  }
+              <SyntaxHighlighter
+                language={language.toLowerCase()}
+                style={oneDark}
+                customStyle={{
+                  margin: 0,
+                  padding: '1rem',
+                  background: 'transparent',
+                  fontSize: '0.875rem',
                 }}
-                template="react"
-                files={{
-                  '/App.js': code,
-                }}
-                options={{
-                  showNavigator: true,
-                  showLineNumbers: true,
-                  showInlineErrors: true,
-                  wrapContent: true,
-                  editorHeight: 500,
-                  classes: {
-                    'sp-wrapper': 'custom-wrapper',
-                    'sp-layout': 'custom-layout',
-                    'sp-editor': 'custom-editor',
-                  },
-                }}
-              />
+                showLineNumbers
+                wrapLongLines
+              >
+                {code}
+              </SyntaxHighlighter>
+              
+              {!isExpanded && lineCount > 15 && (
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-900 to-transparent" />
+              )}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
