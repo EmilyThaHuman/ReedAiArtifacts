@@ -18,7 +18,7 @@ const extractCodeBlocks = content => {
   }, [])
 }
 
-const ChatMessage = ({ message, isStreaming }) => {
+const ChatMessage = ({ message, isStreaming = false }) => {
   const [copiedIndex, setCopiedIndex] = useState(null)
   const codeBlocks = extractCodeBlocks(message.content)
   const hasCode = codeBlocks.length > 0
@@ -36,13 +36,15 @@ const ChatMessage = ({ message, isStreaming }) => {
         <ReactMarkdown
           className='prose dark:prose-invert max-w-none prose-pre:hidden'
           components={{
-            a: ({ node, ...props }) => (
+            a: ({ node, children, ...props }) => (
               <a
                 {...props}
                 className='text-blue-400 hover:text-blue-500 transition-colors'
                 target='_blank'
                 rel='noopener noreferrer'
-              />
+              >
+                {children}
+              </a>
             ),
             ul: ({ node, ...props }) => (
               <ul {...props} className='list-disc pl-4 space-y-2' />
@@ -76,13 +78,15 @@ const ChatMessage = ({ message, isStreaming }) => {
                 key={`text-${index}-${block.length}`}
                 className='prose dark:prose-invert max-w-none prose-pre:hidden'
                 components={{
-                  a: ({ node, ...props }) => (
+                  a: ({ node, children, ...props }) => (
                     <a
                       {...props}
                       className='text-blue-400 hover:text-blue-500 transition-colors'
                       target='_blank'
                       rel='noopener noreferrer'
-                    />
+                    >
+                      {children}
+                    </a>
                   ),
                   ul: ({ node, ...props }) => (
                     <ul {...props} className='list-disc pl-4 space-y-2' />
@@ -161,10 +165,6 @@ ChatMessage.propTypes = {
     content: PropTypes.string.isRequired,
   }).isRequired,
   isStreaming: PropTypes.bool,
-}
-
-ChatMessage.defaultProps = {
-  isStreaming: false,
 }
 
 export { ChatMessage }

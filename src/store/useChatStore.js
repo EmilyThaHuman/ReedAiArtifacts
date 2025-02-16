@@ -3,32 +3,30 @@ import { create } from 'zustand'
 const INITIAL_MODEL = {
   value: 'gpt-3.5-turbo',
   label: 'GPT-3.5 Turbo',
-  description: 'Fast and cost-effective chat model'
+  description: 'Fast and cost-effective chat model',
+  isReasoning: false
 }
 
-export const useChatStore = create((set, get) => ({
+export const useChatStore = create((set) => ({
   messages: [],
   currentModel: INITIAL_MODEL,
   isStreaming: false,
-  conversations: [],
-  selectedConversation: null,
+  isThinking: false,
+  thoughts: [],
   
   setCurrentModel: (model) => set({ currentModel: model }),
   setIsStreaming: (status) => set({ isStreaming: status }),
+  setIsThinking: (status) => set({ isThinking: status }),
   
-  addMessage: (message) => set((state) => {
-    const newMessages = [...state.messages, message]
-    // Also update the current conversation if one is selected
-    if (state.selectedConversation) {
-      const conversations = state.conversations.map(conv => 
-        conv.id === state.selectedConversation
-          ? { ...conv, messages: newMessages }
-          : conv
-      )
-      return { messages: newMessages, conversations }
-    }
-    return { messages: newMessages }
-  }),
+  addThought: (thought) => set(state => ({
+    thoughts: [...state.thoughts, thought]
+  })),
+
+  clearThoughts: () => set({ thoughts: [] }),
+  
+  addMessage: (message) => set((state) => ({
+    messages: [...state.messages, message]
+  })),
   
   updateLastMessage: (content) => set((state) => {
     const messages = [...state.messages]
@@ -37,42 +35,12 @@ export const useChatStore = create((set, get) => ({
         ...messages[messages.length - 1],
         content
       }
-      // Also update the current conversation if one is selected
-      if (state.selectedConversation) {
-        const conversations = state.conversations.map(conv => 
-          conv.id === state.selectedConversation
-            ? { ...conv, messages }
-            : conv
-        )
-        return { messages, conversations }
-      }
     }
     return { messages }
   }),
   
-  createNewConversation: () => {
-    const id = Date.now().toString()
-    set((state) => ({
-      conversations: [...state.conversations, {
-        id,
-        title: 'New Chat',
-        messages: []
-      }],
-      selectedConversation: id,
-      messages: []
-    }))
-  },
-  
-  selectConversation: (id) => {
-    const state = get()
-    const conversation = state.conversations.find(c => c.id === id)
-    if (conversation) {
-      set({
-        selectedConversation: id,
-        messages: conversation.messages
-      })
-    }
-  },
-  
-  clearMessages: () => set({ messages: [] })
+  clearMessages: () => set({ 
+    messages: [],
+    thoughts: []
+  })
 }))

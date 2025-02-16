@@ -14,21 +14,41 @@ class OpenAIInstance {
     OpenAIInstance.instance = this
   }
 
+  async *streamWithBuffer(stream) {
+    let buffer = ''
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || ''
+      buffer += content
+
+      // If we find any complete markers, yield them
+      if (buffer.includes('THINKING:') || buffer.includes('RESPONSE:')) {
+        const parts = buffer.split(/(?=THINKING:|RESPONSE:)/)
+        // Keep the last part (which might be incomplete) in the buffer
+        buffer = parts.pop() || ''
+        // Yield all complete parts
+        for (const part of parts) {
+          yield part
+        }
+      }
+    }
+
+    // Yield any remaining content
+    if (buffer) {
+      yield buffer
+    }
+  }
+
   async streamChatCompletion(messages, model) {
     try {
-      const modelValue = typeof model === 'object' ? model.value : model
-
-      console.log('Starting stream with model:', modelValue)
-
+      // Only use the required parameters
       const stream = await this.client.chat.completions.create({
+        model: model.value,
         messages,
-        model: modelValue,
-        stream: true,
-        temperature: 0.7,
-        // max_tokens: 8000,
+        stream: true
       })
 
-      return stream
+      return this.streamWithBuffer(stream)
     } catch (error) {
       console.error('OpenAI Stream Error:', error)
       throw error
