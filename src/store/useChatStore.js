@@ -39,7 +39,7 @@ const MODEL_METADATA = {
 }
 
 // Store only the model ID as initial state
-const INITIAL_MODEL_ID = availableModels[0].value
+const INITIAL_MODEL_ID = availableModels[2].value
 
 const INITIAL_STATE = {
   conversations: [],
