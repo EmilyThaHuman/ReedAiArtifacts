@@ -1,41 +1,155 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { generateChatTitle } from '@/lib/generateChatTitle'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Brain, Bot, Star, Lightbulb, Code } from 'lucide-react'
 import { availableModels } from '@/lib/providers'
 import { useFileStore } from './useFileStore'
 
 const SYSTEM_FOLDERS = {
   PROMPTS: 'prompts',
+  TOOLS: 'tools',
+  AGENTS: 'agents',
 }
 
-const INITIAL_MODEL = {
-  value: 'gpt-3.5-turbo',
-  label: 'GPT-3.5 Turbo',
-  description: 'Fast and cost-effective chat model',
-  isReasoning: false,
+const MODEL_METADATA = {
+  openai: {
+    icon: Sparkles,
+    category: 'OpenAI',
+  },
+  anthropic: {
+    icon: Brain,
+    category: 'Anthropic',
+  },
+  mistral: {
+    icon: Bot,
+    category: 'Mistral AI',
+  },
+  deepseek: {
+    icon: Code,
+    category: 'DeepSeek',
+  },
+  cohere: {
+    icon: Star,
+    category: 'Cohere',
+  },
+  google: {
+    icon: Lightbulb,
+    category: 'Google AI',
+  },
+}
+
+// Store only the model ID as initial state
+const INITIAL_MODEL_ID = availableModels[0].value
+
+const INITIAL_STATE = {
+  conversations: [],
+  selectedConversation: null,
+  messages: [],
+  currentModelId: INITIAL_MODEL_ID,
+  isStreaming: false,
+  isThinking: false,
+  thoughts: [],
+  folders: [
+    {
+      id: SYSTEM_FOLDERS.PROMPTS,
+      name: 'Prompts',
+      conversations: [],
+      isSystem: true,
+    },
+    {
+      id: SYSTEM_FOLDERS.TOOLS,
+      name: 'Tools',
+      conversations: [],
+      isSystem: true,
+    },
+    {
+      id: SYSTEM_FOLDERS.AGENTS,
+      name: 'Agents',
+      conversations: [],
+      isSystem: true,
+    },
+  ],
+  isPromptDialogOpen: false,
+  editingPrompt: null,
+}
+
+// Helper to merge initial state with stored state
+const mergeInitialState = persistedState => {
+  if (!persistedState) return INITIAL_STATE
+
+  // Ensure system folders exist
+  const systemFolderIds = Object.values(SYSTEM_FOLDERS)
+  const existingFolders = persistedState.folders || []
+
+  const missingSystemFolders = INITIAL_STATE.folders.filter(
+    folder => !existingFolders.some(f => f.id === folder.id)
+  )
+
+  return {
+    ...INITIAL_STATE,
+    ...persistedState,
+    folders: [...(persistedState.folders || []), ...missingSystemFolders],
+    conversations: persistedState.conversations || [],
+    currentModelId: persistedState.currentModelId || INITIAL_MODEL_ID,
+  }
+}
+
+// Helper to get full model object from ID
+const getModelFromId = modelId => {
+  const model = availableModels.find(model => model.value === modelId)
+  return model || availableModels[0]
 }
 
 export const useChatStore = create(
   persist(
     (set, get) => ({
-      conversations: [],
-      selectedConversation: null,
-      messages: [],
-      currentModel: availableModels[0],
-      isStreaming: false,
-      isThinking: false,
-      thoughts: [],
-      folders: [
-        {
-          id: SYSTEM_FOLDERS.PROMPTS,
-          name: 'Prompts',
-          conversations: [],
-          isSystem: true,
-        },
-      ],
-      isPromptDialogOpen: false,
-      editingPrompt: null,
+      ...INITIAL_STATE,
+
+      // Add rehydration handler
+      rehydrateStore: state => {
+        console.log('Rehydrating state:', state)
+        const mergedState = mergeInitialState(state)
+        console.log('Merged state:', mergedState)
+
+        // Ensure all folders have valid conversation arrays
+        const rehydratedFolders = mergedState.folders.map(folder => ({
+          ...folder,
+          conversations: Array.isArray(folder.conversations)
+            ? folder.conversations
+            : [],
+          isSystem: folder.id in SYSTEM_FOLDERS ? true : false,
+        }))
+
+        // Ensure all conversations exist and are valid
+        const validConversations = mergedState.conversations.filter(
+          conv => conv && conv.id
+        )
+
+        // Remove any references to non-existent conversations from folders
+        const cleanedFolders = rehydratedFolders.map(folder => ({
+          ...folder,
+          conversations: folder.conversations.filter(convId =>
+            validConversations.some(conv => conv.id === convId)
+          ),
+        }))
+
+        const finalState = {
+          ...mergedState,
+          folders: cleanedFolders,
+          conversations: validConversations,
+        }
+        console.log('Final rehydrated state:', finalState)
+        set(finalState)
+      },
+
+      // Computed property to get the full model object
+      get currentModel() {
+        const model = getModelFromId(get().currentModelId)
+        return {
+          ...model,
+          icon: MODEL_METADATA[model.provider]?.icon,
+        }
+      },
 
       createNewConversation: () => {
         // First check if there's already an empty "New Chat"
@@ -76,7 +190,7 @@ export const useChatStore = create(
         if (conversation) {
           set({
             selectedConversation: conversationId,
-            messages: conversation.messages,
+            messages: conversation.messages || [],
           })
         }
       },
@@ -92,16 +206,35 @@ export const useChatStore = create(
       deleteConversation: id =>
         set(state => {
           const newConversations = state.conversations.filter(c => c.id !== id)
+          const nextConversation = newConversations[0]
           return {
             conversations: newConversations,
-            selectedConversation: newConversations[0]?.id || null,
-            messages: newConversations[0]?.messages || [],
+            selectedConversation: nextConversation?.id || null,
+            messages: nextConversation?.messages || [],
           }
         }),
 
-      setCurrentModel: model => set({ currentModel: model }),
+      setCurrentModel: model => {
+        if (!model?.value) {
+          console.log('Invalid model:', model)
+          return
+        }
+
+        // Ensure the model exists in availableModels
+        const validModel = availableModels.find(m => m.value === model.value)
+        if (!validModel) {
+          console.log('Unknown model:', model)
+          return
+        }
+
+        console.log('Setting model ID:', model.value)
+        set(state => {
+          console.log('Previous state:', state)
+          return { currentModelId: model.value }
+        })
+      },
       setIsStreaming: status => set({ isStreaming: status }),
-      setIsThinking: status => set({ isIsThinking: status }),
+      setIsThinking: status => set({ isThinking: status }),
 
       addThought: thought =>
         set(state => ({
@@ -111,6 +244,18 @@ export const useChatStore = create(
       clearThoughts: () => set({ thoughts: [] }),
 
       addMessage: async message => {
+        const currentState = get()
+        const currentConversation = currentState.conversations.find(
+          c => c.id === currentState.selectedConversation
+        )
+
+        if (!currentConversation) {
+          console.error('No conversation selected')
+          return
+        }
+
+        let updatedMessage = message
+
         if (message.files) {
           // Store files and get their IDs
           const fileStore = useFileStore.getState()
@@ -119,35 +264,38 @@ export const useChatStore = create(
           )
 
           const fileIds = await Promise.all(filePromises)
-          set(state => ({
-            messages: [
-              ...state.messages,
-              {
-                ...message,
-                files: fileIds,
-              },
-            ],
-          }))
-        } else {
-          set(state => ({
-            messages: [...state.messages, message],
-          }))
+          updatedMessage = {
+            ...message,
+            files: fileIds,
+          }
         }
 
-        // Generate title after 2 messages
-        const currentConversation = get().conversations.find(
-          c => c.id === get().selectedConversation
-        )
+        const updatedMessages = [...currentState.messages, updatedMessage]
 
+        set(state => ({
+          messages: updatedMessages,
+          conversations: state.conversations.map(conv =>
+            conv.id === currentState.selectedConversation
+              ? { ...conv, messages: updatedMessages }
+              : conv
+          ),
+        }))
+
+        // Generate title after first user message or if still default title
         if (
-          currentConversation?.messages.length === 2 &&
-          currentConversation.title === 'New Chat'
+          (currentConversation.title === 'New Chat' &&
+            message.role === 'assistant') ||
+          (currentConversation.messages.length === 0 && message.role === 'user')
         ) {
           try {
             const newTitle = await generateChatTitle(
-              currentConversation.messages
+              updatedMessages,
+              currentState.currentModel
             )
-            get().updateConversationTitle(get().selectedConversation, newTitle)
+            get().updateConversationTitle(
+              currentState.selectedConversation,
+              newTitle
+            )
           } catch (error) {
             console.error('Error generating chat title:', error)
           }
@@ -156,11 +304,19 @@ export const useChatStore = create(
 
       updateLastMessage: content => {
         set(state => {
-          const messages = [...state.messages]
-          if (messages.length > 0) {
-            messages[messages.length - 1].content = content
+          const updatedMessages = [...state.messages]
+          if (updatedMessages.length > 0) {
+            updatedMessages[updatedMessages.length - 1].content = content
           }
-          return { messages }
+
+          return {
+            messages: updatedMessages,
+            conversations: state.conversations.map(conv =>
+              conv.id === state.selectedConversation
+                ? { ...conv, messages: updatedMessages }
+                : conv
+            ),
+          }
         })
       },
 
@@ -172,16 +328,34 @@ export const useChatStore = create(
             message.files.forEach(fileId => fileStore.removeFile(fileId))
           }
         })
-        set({ messages: [], thoughts: [] })
+
+        set(state => ({
+          messages: [],
+          thoughts: [],
+          conversations: state.conversations.map(conv =>
+            conv.id === state.selectedConversation
+              ? { ...conv, messages: [] }
+              : conv
+          ),
+        }))
       },
 
       regenerateTitle: async conversationId => {
-        const conversation = get().conversations.find(
+        const state = get()
+        const conversation = state.conversations.find(
           c => c.id === conversationId
         )
         if (conversation?.messages.length > 0) {
-          const newTitle = await generateChatTitle(conversation.messages)
-          get().updateConversationTitle(conversationId, newTitle)
+          try {
+            const newTitle = await generateChatTitle(
+              conversation.messages,
+              state.currentModel
+            )
+            get().updateConversationTitle(conversationId, newTitle)
+          } catch (error) {
+            console.error('Error regenerating chat title:', error)
+            // Keep existing title on error
+          }
         }
       },
 
@@ -193,6 +367,7 @@ export const useChatStore = create(
               id: crypto.randomUUID(),
               name,
               conversations: [],
+              isSystem: false,
             },
           ],
         })),
@@ -303,11 +478,48 @@ export const useChatStore = create(
     }),
     {
       name: 'chat-storage',
-      partialize: state => ({
-        conversations: state.conversations,
-        currentModel: state.currentModel,
-        folders: state.folders,
-      }),
+      storage: {
+        getItem: name => {
+          const str = localStorage.getItem(name)
+          console.log('Loading from storage:', name, str)
+          return str
+        },
+        setItem: (name, value) => {
+          console.log('Saving to storage:', name, value)
+          localStorage.setItem(name, value)
+        },
+        removeItem: name => localStorage.removeItem(name),
+      },
+      partialize: state => {
+        const partialState = {
+          conversations: state.conversations || [],
+          currentModelId: state.currentModelId || INITIAL_MODEL_ID,
+          folders: (state.folders || []).map(folder => ({
+            id: folder.id,
+            name: folder.name,
+            conversations: folder.conversations || [],
+            isSystem: folder.id in SYSTEM_FOLDERS ? true : false,
+          })),
+        }
+        console.log('Partializing state:', partialState)
+        return partialState
+      },
+      version: 1,
+      onRehydrateStorage: () => state => {
+        console.log('onRehydrateStorage called with state:', state)
+        if (state) {
+          state.rehydrateStore(state)
+        }
+      },
+      merge: (persistedState, currentState) => {
+        console.log('Merging states:', { persistedState, currentState })
+        const merged = mergeInitialState(persistedState)
+        console.log('Merge result:', merged)
+        return {
+          ...currentState,
+          ...merged,
+        }
+      },
     }
   )
 )

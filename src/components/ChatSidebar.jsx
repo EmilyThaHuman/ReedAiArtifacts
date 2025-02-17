@@ -12,61 +12,195 @@ import {
   MoreVertical,
   Sparkles,
   X,
+  ChevronLeft,
+  HelpCircle,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/useChatStore'
 import { PromptDialog } from './PromptDialog'
+import { NavUser } from './NavUser'
+import { NavSecondary } from './NavSecondary'
 import PropTypes from 'prop-types'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from '@/components/ui/tooltip'
+import {
+  Sidebar,
+  SidebarTrigger,
+  useSidebar,
+  SidebarFooter,
+  SidebarSeparator,
+} from '@/components/ui/sidebar'
 
+// Styles organized by component
 const styles = {
-  container: cn('flex flex-col h-full', 'bg-gray-900', 'text-gray-100'),
-  header: cn(
-    'flex items-center justify-between',
-    'p-4 border-b border-gray-800'
-  ),
-  newChatButton: cn(
-    'flex-1 flex items-center justify-center gap-2',
-    'p-2 rounded-lg',
-    'bg-blue-600 hover:bg-blue-700',
-    'text-white font-medium',
-    'transition-all duration-200'
-  ),
-  moreButton: cn(
-    'p-2 ml-2 rounded-lg',
-    'bg-gray-800 hover:bg-gray-700',
-    'transition-colors'
-  ),
-  searchContainer: cn('p-4 border-b border-gray-800'),
-  searchWrapper: cn('flex items-center gap-2'),
-  searchInput: cn(
-    'flex-1',
-    'w-full p-2 pl-9',
-    'bg-gray-800 rounded-lg',
-    'text-gray-100 placeholder-gray-500',
-    'focus:outline-none focus:ring-2 focus:ring-blue-500'
-  ),
-  searchIcon: cn(
-    'absolute left-3 top-1/2 -translate-y-1/2',
-    'w-4 h-4 text-gray-500'
-  ),
-  newFolderButton: cn(
-    'p-2 rounded-lg',
-    'bg-gray-800 hover:bg-gray-700',
-    'transition-colors'
-  ),
-  conversationsList: cn('flex-1 overflow-y-auto', 'px-2 py-2', 'space-y-1'),
-  closeButton: cn(
-    'absolute top-4 right-4',
-    'p-2 rounded-lg',
-    'text-gray-400 hover:text-gray-300',
-    'transition-colors',
-    'focus:outline-none focus:ring-2 focus:ring-blue-500',
-    'md:hidden' // Hide on desktop
-  ),
+  // Main container styles
+  container: {
+    header: cn(
+      'flex items-center justify-between',
+      'p-4',
+      'border-b border-sidebar-border'
+    ),
+    headerCollapsed: cn('flex-col items-center gap-2', 'py-4 px-2'),
+    searchContainer: cn(
+      'p-4 border-b border-sidebar-border',
+      'transition-all duration-200'
+    ),
+    searchWrapper: cn('flex items-center gap-2', 'w-full'),
+    searchWrapperCollapsed: cn('flex-col items-center gap-2'),
+    conversationsList: cn('flex-1 overflow-hidden'),
+  },
+  // Button styles
+  buttons: {
+    newChat: cn(
+      'flex items-center justify-center gap-2',
+      'bg-sidebar-primary text-sidebar-primary-foreground',
+      'hover:bg-sidebar-primary/90',
+      'transition-all duration-200'
+    ),
+    newChatCollapsed: cn('w-10 h-10 p-0', 'rounded-md'),
+    newChatExpanded: 'flex-1 px-4 py-2',
+    toggle: cn(
+      'absolute right-0 top-3 -mr-3 h-6 w-6',
+      'flex items-center justify-center',
+      'rounded-full border bg-background shadow-md',
+      'hover:bg-accent hover:text-accent-foreground',
+      'focus-visible:outline-none focus-visible:ring-1',
+      'transition-transform duration-100 active:translate-x-0.5'
+    ),
+  },
+  // Folder styles
+  folder: {
+    header: cn(
+      'flex items-center gap-2 p-2 rounded-md',
+      'hover:bg-sidebar-accent/10',
+      'cursor-pointer',
+      'group'
+    ),
+    name: cn(
+      'flex-1 text-sm font-medium',
+      'text-sidebar-foreground/80 group-hover:text-sidebar-foreground'
+    ),
+    actions: cn(
+      'flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity'
+    ),
+  },
+  // Conversation styles
+  conversation: {
+    item: cn(
+      'flex w-full items-center gap-2 p-2 rounded-md',
+      'hover:bg-sidebar-accent/10',
+      'cursor-pointer',
+      'group',
+      'transition-colors duration-200'
+    ),
+    selected: cn('bg-sidebar-accent/20 hover:bg-sidebar-accent/30'),
+    actions: cn(
+      'flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity'
+    ),
+  },
 }
 
-export const ChatSidebar = ({ onClose, isOpen }) => {
+const ConversationItem = ({
+  conversation,
+  selected,
+  onSelect,
+  onDelete,
+  onRegenerateTitle,
+  onDragStart,
+}) => {
+  return (
+    <TooltipProvider delayDuration={0}>
+      <div
+        className={cn(
+          styles.conversation.item,
+          selected && styles.conversation.selected
+        )}
+        onClick={onSelect}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect()
+          }
+        }}
+        draggable
+        onDragStart={onDragStart}
+        role='option'
+        aria-selected={selected}
+        tabIndex={0}
+      >
+        <MessageSquare className='h-4 w-4 text-muted-foreground' />
+        <span className='flex-1 text-sm truncate'>{conversation.title}</span>
+
+        <div className={styles.conversation.actions}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-7 w-7'
+                onClick={e => {
+                  e.stopPropagation()
+                  onRegenerateTitle()
+                }}
+                aria-label='Regenerate title'
+              >
+                <RefreshCw className='h-3 w-3' />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Regenerate Title</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-7 w-7 text-destructive'
+                onClick={e => {
+                  e.stopPropagation()
+                  onDelete()
+                }}
+                aria-label='Delete chat'
+              >
+                <Trash2 className='h-3 w-3' />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete Chat</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </TooltipProvider>
+  )
+}
+
+ConversationItem.propTypes = {
+  conversation: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    title: PropTypes.string.isRequired,
+  }).isRequired,
+  selected: PropTypes.bool.isRequired,
+  onSelect: PropTypes.func.isRequired,
+  onDelete: PropTypes.func.isRequired,
+  onRegenerateTitle: PropTypes.func.isRequired,
+  onDragStart: PropTypes.func.isRequired,
+}
+
+export const ChatSidebar = () => {
   const {
     conversations = [],
     folders = [],
@@ -87,10 +221,11 @@ export const ChatSidebar = ({ onClose, isOpen }) => {
     editPrompt,
   } = useChatStore()
 
+  const { collapsed, setCollapsed } = useSidebar()
+
   const [expandedFolders, setExpandedFolders] = useState({})
   const [draggedConversation, setDraggedConversation] = useState(null)
   const [editingFolderId, setEditingFolderId] = useState(null)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   const inputRef = useRef(null)
@@ -130,7 +265,7 @@ export const ChatSidebar = ({ onClose, isOpen }) => {
     createFolder(name)
   }
 
-  const handleFolderNameEdit = (e, folderId, currentName) => {
+  const handleFolderNameEdit = (e, folderId) => {
     e.stopPropagation()
     setEditingFolderId(folderId)
   }
@@ -142,12 +277,11 @@ export const ChatSidebar = ({ onClose, isOpen }) => {
     setEditingFolderId(null)
   }
 
-  const handleFolderNameKeyDown = (e, folderId, newName) => {
-    if (e.key === 'Enter') {
-      handleFolderNameSave(folderId, newName)
-    } else if (e.key === 'Escape') {
-      setEditingFolderId(null)
+  const handleFolderNameKeyDown = (folderId, newName) => {
+    if (newName.trim()) {
+      renameFolder(folderId, newName.trim())
     }
+    setEditingFolderId(null)
   }
 
   // Helper to get conversations not in any folder
@@ -155,339 +289,299 @@ export const ChatSidebar = ({ onClose, isOpen }) => {
     conv => !folders.some(folder => folder.conversations.includes(conv.id))
   )
 
-  return (
-    <div className={styles.container}>
-      {/* Close button for mobile */}
-      <button
-        onClick={onClose}
-        className={styles.closeButton}
-        aria-label='Close sidebar'
-      >
-        <X className='w-5 h-5' />
-      </button>
-
+  const sidebarContent = (
+    <TooltipProvider delayDuration={0}>
       {/* Header with New Chat and More Options */}
-      <div className={styles.header}>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={createNewConversation}
-          className={styles.newChatButton}
-        >
-          <PlusCircle className='w-5 h-5' />
-          New Chat
-        </motion.button>
-
-        <div className='relative'>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className={styles.moreButton}
-            title='More options'
-          >
-            <MoreVertical className='w-5 h-5' />
-          </motion.button>
-
-          <AnimatePresence>
-            {isDropdownOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+      <div
+        className={cn(
+          styles.container.header,
+          collapsed && styles.container.headerCollapsed
+        )}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={createNewConversation}
+              className={cn(
+                styles.buttons.newChat,
+                collapsed
+                  ? styles.buttons.newChatCollapsed
+                  : styles.buttons.newChatExpanded
+              )}
+              aria-label='New chat'
+            >
+              <PlusCircle className='h-5 w-5' />
+              <span
                 className={cn(
-                  'absolute right-0 mt-2 z-10',
-                  'w-48 rounded-lg',
-                  'bg-gray-800 shadow-lg',
-                  'ring-1 ring-black ring-opacity-5'
+                  'hidden md:inline',
+                  collapsed && 'hidden md:hidden'
                 )}
               >
-                <div className='py-1'>
-                  <button
-                    onClick={() => {
-                      setPromptDialogOpen(true)
-                      setIsDropdownOpen(false)
-                    }}
-                    className={cn(
-                      'flex items-center gap-2',
-                      'w-full px-4 py-2',
-                      'text-sm text-gray-300',
-                      'hover:bg-gray-700'
-                    )}
-                  >
-                    <PlusCircle className='w-4 h-4' />
-                    New Prompt
-                  </button>
-                </div>
-              </motion.div>
+                New Chat
+              </span>
+            </Button>
+          </TooltipTrigger>
+          {collapsed && <TooltipContent side='right'>New Chat</TooltipContent>}
+        </Tooltip>
+
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  className={cn('ml-2', collapsed && 'ml-0')}
+                >
+                  <MoreVertical className='h-5 w-5' />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            {collapsed && (
+              <TooltipContent side='right'>More Options</TooltipContent>
             )}
-          </AnimatePresence>
-        </div>
+          </Tooltip>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuItem onClick={() => setPromptDialogOpen(true)}>
+              <Sparkles className='h-4 w-4 mr-2' />
+              New Prompt
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Search and New Folder */}
-      <div className={styles.searchContainer}>
-        <div className={styles.searchWrapper}>
-          <div className='relative flex-1'>
-            <input
-              type='text'
-              placeholder='Search chats...'
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className={styles.searchInput}
-            />
-            <Search className={styles.searchIcon} />
-          </div>
+      <div className={styles.container.searchContainer}>
+        <div
+          className={cn(
+            styles.container.searchWrapper,
+            collapsed && styles.container.searchWrapperCollapsed
+          )}
+        >
+          {!collapsed && (
+            <div className='relative flex-1'>
+              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+              <Input
+                type='text'
+                placeholder='Search chats...'
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className='pl-9'
+              />
+            </div>
+          )}
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleCreateFolder}
-            className={styles.newFolderButton}
-            title='New Folder'
-          >
-            <Folder className='w-5 h-5' />
-          </motion.button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={handleCreateFolder}
+                className={cn(
+                  'h-9 w-9',
+                  !collapsed && 'ml-2' // Add margin only when not collapsed
+                )}
+                aria-label='New folder'
+              >
+                <Folder className='h-4 w-4' />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={collapsed ? 'right' : 'top'}>
+              New Folder
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
       {/* Conversations List */}
-      <div className={styles.conversationsList}>
-        {/* Folders */}
-        {folders.map(folder => (
-          <div
-            key={folder.id}
-            className='group'
-            onDragOver={handleDragOver}
-            onDrop={e => handleDrop(e, folder.id)}
-          >
-            <div
-              className={cn(
-                'flex items-center gap-2',
-                'p-2 rounded-lg',
-                'hover:bg-gray-800',
-                'cursor-pointer group w-full text-left'
-              )}
-              onClick={() => toggleFolder(folder.id)}
-              role='button'
-              aria-expanded={expandedFolders[folder.id]}
-              tabIndex={0}
-            >
-              {expandedFolders[folder.id] ? (
-                <ChevronDown className='w-4 h-4' />
-              ) : (
-                <ChevronRight className='w-4 h-4' />
-              )}
-              <Folder className='w-5 h-5' />
-
-              {editingFolderId === folder.id ? (
-                <input
-                  ref={inputRef}
-                  type='text'
-                  defaultValue={folder.name}
-                  className={cn(
-                    'flex-1',
-                    'bg-gray-700 text-gray-100',
-                    'px-2 py-1 rounded-md',
-                    'outline-none'
-                  )}
-                  onClick={e => e.stopPropagation()}
-                  onBlur={e => handleFolderNameSave(folder.id, e.target.value)}
-                  onKeyDown={e =>
-                    handleFolderNameKeyDown(e, folder.id, e.target.value)
+      <ScrollArea className={styles.container.conversationsList}>
+        <div className='p-2 space-y-2' role='listbox'>
+          {/* Folders */}
+          {folders.map(folder => (
+            <div key={folder.id}>
+              <div
+                className={styles.folder.header}
+                onClick={() => toggleFolder(folder.id)}
+                onDragOver={handleDragOver}
+                onDrop={e => handleDrop(e, folder.id)}
+                role='button'
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggleFolder(folder.id)
                   }
-                />
-              ) : (
-                <>
-                  <span className='truncate flex-1'>{folder.name}</span>
-                  <div
-                    className={cn(
-                      'flex items-center gap-2',
-                      'opacity-0 group-hover:opacity-100',
-                      'transition-opacity'
-                    )}
-                  >
-                    <button
-                      onClick={e =>
-                        handleFolderNameEdit(e, folder.id, folder.name)
+                }}
+                aria-expanded={expandedFolders[folder.id]}
+              >
+                {expandedFolders[folder.id] ? (
+                  <ChevronDown className='h-4 w-4 text-muted-foreground' />
+                ) : (
+                  <ChevronRight className='h-4 w-4 text-muted-foreground' />
+                )}
+
+                {editingFolderId === folder.id ? (
+                  <Input
+                    ref={inputRef}
+                    defaultValue={folder.name}
+                    onBlur={e =>
+                      handleFolderNameSave(folder.id, e.target.value)
+                    }
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        handleFolderNameKeyDown(folder.id, e.target.value)
                       }
-                      className={cn(
-                        'p-1.5 rounded-md',
-                        'hover:bg-gray-700',
-                        'transition-all',
-                        'text-gray-400 hover:text-blue-400'
-                      )}
-                      title='Edit folder name'
-                    >
-                      <Pencil className='w-4 h-4' />
-                    </button>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        deleteFolder(folder.id)
-                      }}
-                      className={cn(
-                        'p-1.5 rounded-md',
-                        'hover:bg-gray-700',
-                        'transition-all',
-                        'text-gray-400 hover:text-red-400'
-                      )}
-                      title='Delete folder'
-                    >
-                      <Trash2 className='w-4 h-4' />
-                    </button>
+                    }}
+                    className='h-7 py-1'
+                    aria-label='Edit folder name'
+                  />
+                ) : (
+                  <span
+                    className={cn(styles.folder.name, collapsed && 'sr-only')}
+                  >
+                    {folder.name}
+                  </span>
+                )}
+
+                {!collapsed && (
+                  <div className={styles.folder.actions}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='h-7 w-7'
+                          onClick={e => {
+                            e.stopPropagation()
+                            handleFolderNameEdit(e, folder.id)
+                          }}
+                          aria-label='Rename folder'
+                        >
+                          <Pencil className='h-3 w-3' />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Rename Folder</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='h-7 w-7 text-destructive'
+                          onClick={e => {
+                            e.stopPropagation()
+                            deleteFolder(folder.id)
+                          }}
+                          aria-label='Delete folder'
+                        >
+                          <Trash2 className='h-3 w-3' />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete Folder</TooltipContent>
+                    </Tooltip>
                   </div>
-                </>
-              )}
+                )}
+              </div>
+
+              <AnimatePresence>
+                {expandedFolders[folder.id] && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className={cn('space-y-1', !collapsed && 'pl-4')}
+                    role='group'
+                    aria-label={`${folder.name} conversations`}
+                  >
+                    {folder.conversations.map(convId => {
+                      const conversation = conversations.find(
+                        c => c.id === convId
+                      )
+                      if (!conversation) return null
+
+                      return (
+                        <ConversationItem
+                          key={conversation.id}
+                          conversation={conversation}
+                          selected={
+                            selectedConversation?.id === conversation.id
+                          }
+                          onSelect={() => selectConversation(conversation)}
+                          onDelete={() => deleteConversation(conversation.id)}
+                          onRegenerateTitle={() =>
+                            regenerateTitle(conversation.id)
+                          }
+                          onDragStart={e => handleDragStart(e, conversation.id)}
+                        />
+                      )
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
+          ))}
 
-            {/* Folder Contents */}
-            <AnimatePresence>
-              {expandedFolders[folder.id] && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className='pl-6 space-y-1 overflow-hidden'
-                >
-                  {folder.conversations.map(convId => {
-                    const conv = conversations.find(c => c.id === convId)
-                    if (!conv) return null
-                    return (
-                      <ConversationItem
-                        key={conv.id}
-                        conversation={conv}
-                        selected={selectedConversation?.id === conv.id}
-                        onSelect={() => selectConversation(conv.id)}
-                        onDelete={() => deleteConversation(conv.id)}
-                        onRegenerateTitle={() => regenerateTitle(conv.id)}
-                        onDragStart={e => handleDragStart(e, conv.id)}
-                      />
-                    )
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        ))}
+          {/* Unorganized Conversations */}
+          {unorganizedConversations.map(conversation => (
+            <ConversationItem
+              key={conversation.id}
+              conversation={conversation}
+              selected={selectedConversation?.id === conversation.id}
+              onSelect={() => selectConversation(conversation)}
+              onDelete={() => deleteConversation(conversation.id)}
+              onRegenerateTitle={() => regenerateTitle(conversation.id)}
+              onDragStart={e => handleDragStart(e, conversation.id)}
+            />
+          ))}
+        </div>
+      </ScrollArea>
 
-        {/* Unorganized Conversations */}
-        {unorganizedConversations.map(conv => (
-          <ConversationItem
-            key={conv.id}
-            conversation={conv}
-            selected={selectedConversation?.id === conv.id}
-            onSelect={() => selectConversation(conv.id)}
-            onDelete={() => deleteConversation(conv.id)}
-            onRegenerateTitle={() => regenerateTitle(conv.id)}
-            onDragStart={e => handleDragStart(e, conv.id)}
-          />
-        ))}
-      </div>
+      {/* Footer with User Menu */}
+      <SidebarFooter>
+        <NavSecondary
+          items={[
+            {
+              title: 'Support',
+              url: 'https://support.example.com',
+              icon: HelpCircle,
+            },
+            {
+              title: 'Feedback',
+              url: 'https://feedback.example.com',
+              icon: MessageSquare,
+            },
+          ]}
+        />
+        <SidebarSeparator />
+        <NavUser />
+      </SidebarFooter>
 
+      {/* Prompt Dialog */}
       <PromptDialog
-        isOpen={isPromptDialogOpen}
-        onClose={() => {
-          setPromptDialogOpen(false)
-          setEditingPrompt(null)
-        }}
+        open={isPromptDialogOpen}
+        onOpenChange={setPromptDialogOpen}
         onSubmit={editingPrompt ? editPrompt : createPrompt}
         editingPrompt={editingPrompt}
+        onCancelEdit={() => setEditingPrompt(null)}
       />
-    </div>
+    </TooltipProvider>
   )
-}
-
-// Separate component for conversation items
-const ConversationItem = ({
-  conversation,
-  selected,
-  onSelect,
-  onDelete,
-  onRegenerateTitle,
-  onDragStart,
-}) => {
-  const isPrompt = conversation.isPrompt
-  const { setEditingPrompt } = useChatStore()
-
-  const handleClick = () => {
-    if (isPrompt) {
-      setEditingPrompt(conversation)
-    } else {
-      onSelect()
-    }
-  }
 
   return (
-    <motion.div
-      className='group relative'
-      draggable
-      onDragStart={e => onDragStart(e, conversation.id)}
-    >
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={handleClick}
-        className={`
-          w-full flex items-center gap-2 p-2 rounded-lg transition-colors
-          ${selected ? 'bg-gray-800 text-blue-400' : 'hover:bg-gray-800 text-gray-300'}
-          ${isPrompt ? 'text-purple-400' : ''}
-        `}
-      >
-        {isPrompt ? (
-          <Sparkles className='w-5 h-5 flex-shrink-0' />
-        ) : (
-          <MessageSquare className='w-5 h-5 flex-shrink-0' />
-        )}
-        <span className='truncate'>{conversation.title || 'New Chat'}</span>
-      </motion.button>
-
-      <div className='absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-        {!isPrompt && (
-          <button
-            onClick={e => {
-              e.stopPropagation()
-              onRegenerateTitle(conversation.id)
-            }}
-            className='p-1.5 rounded-md hover:bg-gray-700 transition-all text-gray-400 hover:text-blue-400'
-            title='Regenerate title'
-          >
-            <RefreshCw className='w-4 h-4' />
-          </button>
-        )}
-        <button
-          onClick={e => {
-            e.stopPropagation()
-            onDelete(conversation.id)
-          }}
-          className='p-1.5 rounded-md hover:bg-gray-700 transition-all text-gray-400 hover:text-red-400'
-          title='Delete chat'
-        >
-          <Trash2 className='w-4 h-4' />
-        </button>
+    <Sidebar variant='floating' collapsible='icon'>
+      {sidebarContent}
+      <div className={styles.buttons.toggle}>
+        <SidebarTrigger>
+          {collapsed ? (
+            <ChevronRight className='h-4 w-4' />
+          ) : (
+            <ChevronLeft className='h-4 w-4' />
+          )}
+        </SidebarTrigger>
       </div>
-    </motion.div>
+    </Sidebar>
   )
 }
-
-ConversationItem.propTypes = {
-  conversation: PropTypes.shape({
-    id: PropTypes.string.isRequired,
-    title: PropTypes.string,
-    isPrompt: PropTypes.bool,
-  }).isRequired,
-  selected: PropTypes.bool,
-  onSelect: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired,
-  onRegenerateTitle: PropTypes.func.isRequired,
-  onDragStart: PropTypes.func.isRequired,
-}
-
-ChatSidebar.propTypes = {
-  onClose: PropTypes.func.isRequired,
-  isOpen: PropTypes.bool.isRequired,
-}
-
-ChatSidebar.displayName = 'ChatSidebar'
 
 export default ChatSidebar

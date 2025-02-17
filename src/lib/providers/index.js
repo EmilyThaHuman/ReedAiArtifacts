@@ -16,6 +16,29 @@ export { google } from './google'
 export const availableModels = [
   // OpenAI Models
   {
+    value: 'o1',
+    label: 'O1',
+    provider: 'openai',
+    description:
+      'Advanced reasoning model for complex tasks and better generalization',
+    features: {
+      tools: true,
+      vision: false,
+      contextLength: 128000,
+    },
+  },
+  {
+    value: 'o3-mini',
+    label: 'O3-Mini',
+    provider: 'openai',
+    description: 'Fast reasoning model optimized for efficiency',
+    features: {
+      tools: true,
+      vision: false,
+      contextLength: 128000,
+    },
+  },
+  {
     value: 'gpt-4-0125-preview',
     label: 'GPT-4 Turbo (Latest)',
     provider: 'openai',
@@ -35,17 +58,6 @@ export const availableModels = [
       tools: true,
       vision: true,
       contextLength: 128000,
-    },
-  },
-  {
-    value: 'gpt-4',
-    label: 'GPT-4',
-    provider: 'openai',
-    description: 'More reliable but slightly older than Turbo',
-    features: {
-      tools: true,
-      vision: false,
-      contextLength: 8192,
     },
   },
   {
@@ -164,6 +176,17 @@ export const availableModels = [
   },
 
   // DeepSeek Models
+  {
+    value: 'deepseek-r1-chat',
+    label: 'DeepSeek R1 Chat',
+    provider: 'deepseek',
+    description: 'Latest model with enhanced reasoning capabilities',
+    features: {
+      tools: false,
+      vision: false,
+      contextLength: 32768,
+    },
+  },
   {
     value: 'deepseek-chat-67b',
     label: 'DeepSeek Chat 67B',

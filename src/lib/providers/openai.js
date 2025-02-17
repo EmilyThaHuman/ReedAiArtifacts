@@ -17,27 +17,39 @@ class OpenAIProvider extends BaseAIProvider {
   }
 
   extractContent(chunk) {
+    console.log('Extracting content from chunk:', chunk)
     if (chunk.choices[0]?.delta?.tool_calls) {
       // Handle tool calls in the content
-      return JSON.stringify({
+      const toolCallContent = JSON.stringify({
         type: 'tool_call',
         content: chunk.choices[0].delta.tool_calls,
       })
+      console.log('Extracted tool call content:', toolCallContent)
+      return toolCallContent
     }
-    return chunk.choices[0]?.delta?.content || ''
+    const content = chunk.choices[0]?.delta?.content || ''
+    console.log('Extracted regular content:', content)
+    return content
   }
 
   async streamChatCompletion(messages, model) {
     try {
+      console.log('Starting stream chat completion with model:', model.value)
       const tools = this.getTools(model)
+      const isReasoningModel = model.value.startsWith('o')
+
+      console.log('Using tools:', tools.length > 0 ? tools : 'No tools')
+
       const stream = await this.client.chat.completions.create({
         model: model.value,
         messages,
         stream: true,
         tools: tools.length > 0 ? tools : undefined,
         tool_choice: tools.length > 0 ? 'auto' : undefined,
+        ...(isReasoningModel && { reasoning_effort: 'medium' }),
       })
 
+      console.log('Stream created successfully')
       return this.streamWithBuffer(this.createStream(stream))
     } catch (error) {
       console.error('OpenAI Stream Error:', error)
@@ -47,89 +59,105 @@ class OpenAIProvider extends BaseAIProvider {
 
   async *createStream(stream) {
     let currentToolCall = null
+    console.log('Starting to process stream')
 
-    for await (const chunk of stream) {
-      if (chunk.choices[0]?.delta?.tool_calls) {
-        const toolCalls = chunk.choices[0].delta.tool_calls
-        for (const toolCall of toolCalls) {
-          if (toolCall.index === undefined) continue
+    try {
+      for await (const chunk of stream) {
+        console.log('Received chunk:', chunk)
+        
+        if (chunk.choices[0]?.delta?.tool_calls) {
+          console.log('Processing tool call chunk')
+          const toolCalls = chunk.choices[0].delta.tool_calls
+          for (const toolCall of toolCalls) {
+            if (toolCall.index === undefined) {
+              console.log('Skipping tool call with undefined index')
+              continue
+            }
 
-          // Initialize or update the current tool call
-          if (!currentToolCall || currentToolCall.index !== toolCall.index) {
-            if (currentToolCall) {
-              // Execute the tool and yield results
-              try {
-                const result = await this.executeTool(currentToolCall)
-                yield {
-                  choices: [
-                    {
-                      delta: {
-                        content: result,
+            if (!currentToolCall || currentToolCall.index !== toolCall.index) {
+              if (currentToolCall) {
+                console.log('Executing previous tool call:', currentToolCall)
+                try {
+                  const result = await this.executeTool(currentToolCall)
+                  console.log('Tool execution result:', result)
+                  yield {
+                    choices: [
+                      {
+                        delta: {
+                          content: result,
+                        },
                       },
-                    },
-                  ],
-                }
-              } catch (error) {
-                yield {
-                  choices: [
-                    {
-                      delta: {
-                        content: `Error executing tool: ${error.message}\n`,
+                    ],
+                  }
+                } catch (error) {
+                  console.error('Tool execution error:', error)
+                  yield {
+                    choices: [
+                      {
+                        delta: {
+                          content: `Error executing tool: ${error.message}\n`,
+                        },
                       },
-                    },
-                  ],
+                    ],
+                  }
                 }
               }
-            }
 
-            currentToolCall = {
-              id: toolCall.id,
-              index: toolCall.index,
-              function: {
-                name: toolCall.function?.name || '',
-                arguments: toolCall.function?.arguments || '',
-              },
-            }
-          } else {
-            // Append to the current tool call
-            if (toolCall.function?.name) {
-              currentToolCall.function.name += toolCall.function.name
-            }
-            if (toolCall.function?.arguments) {
-              currentToolCall.function.arguments += toolCall.function.arguments
+              currentToolCall = {
+                id: toolCall.id,
+                index: toolCall.index,
+                function: {
+                  name: toolCall.function?.name || '',
+                  arguments: toolCall.function?.arguments || '',
+                },
+              }
+              console.log('Created new tool call:', currentToolCall)
+            } else {
+              if (toolCall.function?.name) {
+                currentToolCall.function.name += toolCall.function.name
+              }
+              if (toolCall.function?.arguments) {
+                currentToolCall.function.arguments += toolCall.function.arguments
+              }
+              console.log('Updated tool call:', currentToolCall)
             }
           }
+        } else if (chunk.choices[0]?.delta?.content) {
+          console.log('Yielding content chunk:', chunk.choices[0].delta.content)
+          yield chunk
         }
-      } else if (chunk.choices[0]?.delta?.content) {
-        // Regular content
-        yield chunk
       }
-    }
 
-    // Handle any remaining tool call
-    if (currentToolCall) {
-      try {
-        const result = await this.executeTool(currentToolCall)
-        yield {
-          choices: [
-            {
-              delta: {
-                content: result,
+      if (currentToolCall) {
+        console.log('Processing final tool call:', currentToolCall)
+        try {
+          const result = await this.executeTool(currentToolCall)
+          console.log('Final tool execution result:', result)
+          yield {
+            choices: [
+              {
+                delta: {
+                  content: result,
+                },
               },
-            },
-          ],
-        }
-      } catch (error) {
-        yield {
-          choices: [
-            {
-              delta: {
-                content: `Error executing tool: ${error.message}\n`,
+            ],
+          }
+        } catch (error) {
+          console.error('Final tool execution error:', error)
+          yield {
+            choices: [
+              {
+                delta: {
+                  content: `Error executing tool: ${error.message}\n`,
+                },
               },
-            },
-          ],
+            ],
+          }
         }
       }
+    } catch (error) {
+      console.error('Stream processing error:', error)
+      throw error
     }
   }
 }

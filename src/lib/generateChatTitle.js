@@ -1,6 +1,6 @@
 import { getProvider } from './providers'
 
-export async function generateChatTitle(messages) {
+export async function generateChatTitle(messages, model) {
   if (!messages || messages.length === 0) return 'New Chat'
 
   try {
@@ -26,10 +26,8 @@ export async function generateChatTitle(messages) {
       },
     ]
 
-    const provider = getProvider('openai')
-    const stream = await provider.streamChatCompletion(prompt, {
-      value: 'gpt-3.5-turbo',
-    })
+    const provider = getProvider(model.provider)
+    const stream = await provider.streamChatCompletion(prompt, model)
 
     let title = ''
     for await (const chunk of stream) {

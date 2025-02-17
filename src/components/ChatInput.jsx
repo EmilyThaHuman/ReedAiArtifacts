@@ -1,57 +1,79 @@
 import React, { useState, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
-import { Send, Paperclip, X, Image as ImageIcon, File } from 'lucide-react'
-import { motion } from 'framer-motion'
+import {
+  Send,
+  Paperclip,
+  X,
+  Image as ImageIcon,
+  File,
+  Loader2,
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Card } from '@/components/ui/card'
 
 const styles = {
   container: cn(
-    'flex flex-col gap-2',
-    'p-4 border-t border-gray-800',
-    'bg-gray-900'
+    'flex flex-col gap-3',
+    'p-4',
+    'bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/50'
   ),
   inputWrapper: cn(
-    'flex items-end gap-2',
+    'relative flex items-end gap-2',
     'w-full rounded-lg',
-    'bg-gray-800 text-gray-100'
+    'bg-card',
+    'min-h-[64px]'
   ),
   textArea: cn(
-    'flex-1 p-3 pr-10',
+    'flex-1',
+    'min-h-[64px] py-4 px-4',
+    'resize-none',
     'bg-transparent',
-    'resize-none outline-none',
-    'placeholder:text-gray-500',
-    'min-h-[44px] max-h-[200px]',
-    'scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent'
+    'border-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+    'placeholder:text-muted-foreground'
   ),
-  buttonGroup: cn('flex items-center gap-2 p-2'),
-  button: cn(
-    'p-2 rounded-lg',
-    'text-gray-400 hover:text-gray-100',
-    'hover:bg-gray-700',
-    'transition-colors',
+  buttonGroup: cn(
+    'flex items-center gap-2 px-2',
+    'h-[64px]',
+    'border-l border-border/50'
+  ),
+  iconButton: cn(
+    'inline-flex items-center justify-center',
+    'w-9 h-9 rounded-md',
+    'text-muted-foreground hover:text-foreground',
+    'bg-transparent hover:bg-accent',
+    'transition-colors duration-200',
     'disabled:opacity-50 disabled:cursor-not-allowed'
   ),
-  filePreview: cn('flex flex-wrap gap-2', 'p-2 rounded-lg', 'bg-gray-800'),
+  filePreview: cn(
+    'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3',
+    'p-3 rounded-lg',
+    'bg-card/50'
+  ),
   previewItem: cn(
     'relative group',
-    'flex items-center gap-2',
-    'p-2 rounded-lg',
-    'bg-gray-700'
+    'flex flex-col gap-2',
+    'p-3 rounded-lg',
+    'bg-accent/50 hover:bg-accent/70',
+    'transition-colors duration-200'
   ),
   removeButton: cn(
     'absolute -top-2 -right-2',
-    'p-1 rounded-full',
-    'bg-red-500 text-white',
+    'p-1.5 rounded-full',
+    'bg-destructive/90 hover:bg-destructive text-destructive-foreground',
+    'shadow-sm',
     'opacity-0 group-hover:opacity-100',
-    'transition-opacity'
+    'transition-all duration-200 ease-in-out',
+    'z-10'
   ),
-  previewImage: cn('w-16 h-16', 'object-cover rounded'),
+  previewImage: cn(
+    'w-full aspect-square',
+    'object-cover rounded-md',
+    'bg-accent'
+  ),
   fileInfo: cn('flex flex-col', 'text-sm'),
-  downloadLink: cn(
-    'flex items-center gap-1',
-    'text-blue-400 hover:text-blue-300',
-    'transition-colors'
-  ),
 }
 
 const FilePreviewItem = ({ file, onRemove }) => {
@@ -154,63 +176,80 @@ export const ChatInput = ({
 
   return (
     <div className={styles.container}>
-      {files.length > 0 && (
-        <div className={styles.filePreview}>
-          {files.map((file, index) => (
-            <FilePreviewItem
-              key={`${file.name}-${index}`}
-              file={file}
-              onRemove={removeFile}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {files.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={styles.filePreview}
+          >
+            {files.map((file, index) => (
+              <FilePreviewItem
+                key={`${file.name}-${index}`}
+                file={file}
+                onRemove={removeFile}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className={styles.inputWrapper}>
-        <textarea
-          ref={textAreaRef}
-          value={message}
-          onChange={e => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={isLoading}
-          className={styles.textArea}
-          rows={1}
-        />
-
-        <div className={styles.buttonGroup}>
-          <input
-            ref={fileInputRef}
-            type='file'
-            onChange={handleFileChange}
-            className='hidden'
-            multiple
-            accept='image/*,.pdf,.doc,.docx,.txt'
+      <Card className='border-border/50'>
+        <div className={styles.inputWrapper}>
+          <Textarea
+            ref={textAreaRef}
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={isLoading}
+            className={styles.textArea}
           />
 
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            type='button'
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className={styles.button}
-            aria-label='Attach files'
-          >
-            <Paperclip className='w-5 h-5' />
-          </motion.button>
+          <div className={styles.buttonGroup}>
+            <input
+              ref={fileInputRef}
+              type='file'
+              onChange={handleFileChange}
+              className='hidden'
+              multiple
+              accept='image/*,.pdf,.doc,.docx,.txt'
+            />
 
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            type='button'
-            onClick={handleSubmit}
-            disabled={isLoading || (!message.trim() && files.length === 0)}
-            className={styles.button}
-            aria-label='Send message'
-          >
-            <Send className='w-5 h-5' />
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type='button'
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className={styles.iconButton}
+              aria-label='Attach files'
+            >
+              <Paperclip className='w-4 h-4' />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type='button'
+              onClick={handleSubmit}
+              disabled={isLoading || (!message.trim() && files.length === 0)}
+              className={cn(
+                styles.iconButton,
+                'text-primary hover:text-primary'
+              )}
+              aria-label='Send message'
+            >
+              {isLoading ? (
+                <Loader2 className='w-4 h-4 animate-spin' />
+              ) : (
+                <Send className='w-4 h-4' />
+              )}
+            </motion.button>
+          </div>
         </div>
-      </div>
+      </Card>
 
       <div className='sr-only' role='status' aria-live='polite'>
         {isLoading ? 'Sending message...' : 'Ready to send message'}

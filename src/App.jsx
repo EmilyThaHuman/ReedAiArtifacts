@@ -1,55 +1,30 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { ChatInterface } from './components/ChatInterface'
 import { useChatStore } from '@/store/useChatStore'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { SidebarProvider } from '@/components/ui/sidebar'
+import { ThemeProvider } from 'next-themes'
 
 export const App = () => {
-  const {
-    conversations,
-    selectedConversation,
-    createNewConversation,
-    selectConversation,
-  } = useChatStore()
+  const { conversations, createNewConversation } = useChatStore()
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-
-  useEffect(() => {
-    // If no conversation is selected and we have conversations, select the first one
-    if (!selectedConversation && conversations.length > 0) {
-      selectConversation(conversations[0].id)
-    }
-    // If we have no conversations, create a new one
-    else if (conversations.length === 0) {
+  // Create a new conversation if none exist
+  React.useEffect(() => {
+    if (conversations.length === 0) {
       createNewConversation()
     }
-  }, [
-    conversations,
-    selectedConversation,
-    createNewConversation,
-    selectConversation,
-  ])
-
-  // Update effect to handle sidebar on resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) { // 768px is md breakpoint
-        setIsSidebarOpen(true)
-      } else {
-        setIsSidebarOpen(false)
-      }
-    }
-    
-    handleResize() // Initial check
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [conversations, createNewConversation])
 
   return (
-    <div className='flex h-screen bg-gray-100 dark:bg-gray-900'>
-      <ChatInterface 
-        isSidebarOpen={isSidebarOpen}
-        onSidebarOpenChange={setIsSidebarOpen}
-      />
-    </div>
+    <ThemeProvider attribute='class' defaultTheme='system' enableSystem>
+      <TooltipProvider delayDuration={0}>
+        <SidebarProvider defaultCollapsed={false}>
+          <div className='flex h-screen bg-background'>
+            <ChatInterface />
+          </div>
+        </SidebarProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   )
 }
 

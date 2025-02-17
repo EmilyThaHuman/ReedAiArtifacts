@@ -98,4 +98,52 @@ export class BaseAIProvider {
       throw error
     }
   }
+
+  async sendMessage(text, files = []) {
+    try {
+      let messages = []
+
+      // Add system prompt if available
+      if (this.systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: this.systemPrompt,
+        })
+      }
+
+      // Add system message if files are present
+      if (files && files.length > 0) {
+        messages.push({
+          role: 'system',
+          content:
+            'The user has attached files to this message. Please analyze them and provide appropriate assistance.',
+        })
+      }
+
+      // Add user message
+      messages.push({
+        role: 'user',
+        content: text,
+      })
+
+      // Stream the chat completion
+      let responseContent = ''
+      const stream = await this.streamChatCompletion(
+        messages,
+        this.currentModel
+      )
+
+      for await (const chunk of stream) {
+        responseContent += chunk
+      }
+
+      return {
+        role: 'assistant',
+        content: responseContent,
+      }
+    } catch (error) {
+      console.error('Error in sendMessage:', error)
+      throw error
+    }
+  }
 }

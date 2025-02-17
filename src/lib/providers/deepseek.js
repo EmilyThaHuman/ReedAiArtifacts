@@ -20,6 +20,7 @@ class DeepSeekProvider extends BaseAIProvider {
       'deepseek-chat-67b': 'deepseek-chat',
       'deepseek-coder-33b': 'deepseek-coder-33b-instruct',
       'deepseek-coder-6.7b': 'deepseek-coder-6.7b-instruct',
+      'deepseek-r1-chat': 'deepseek-r1-chat',
     }
     return modelMap[modelValue] || modelValue
   }
