@@ -7,69 +7,79 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useChatStore } from '@/store/useChatStore'
-import { Sparkles, Cpu, Zap } from 'lucide-react'
+import {
+  Sparkles,
+  Cpu,
+  Zap,
+  Brain,
+  Bot,
+  Star,
+  Lightbulb,
+  Code,
+  Wrench,
+  Eye,
+  Boxes,
+} from 'lucide-react'
+import PropTypes from 'prop-types'
+import { availableModels } from '@/lib/providers'
+import { cn } from '@/lib/utils'
 
-const AVAILABLE_MODELS = [
-  {
-    value: 'gpt-4o',
-    label: 'GPT-4o',
-    description: 'Multimodal model for text, images, and audio',
-    isReasoning: false,
+const MODEL_METADATA = {
+  openai: {
     icon: Sparkles,
-    category: 'Vision & Audio',
+    category: 'OpenAI',
   },
-  {
-    value: 'gpt-4o-mini',
-    label: 'GPT-4o Mini',
-    description: 'Cost-effective version of GPT-4o',
-    isReasoning: false,
-    icon: Sparkles,
-    category: 'Vision & Audio',
+  anthropic: {
+    icon: Brain,
+    category: 'Anthropic',
   },
-  {
-    value: 'o1',
-    label: 'o1',
-    description: 'Enhanced reasoning and problem-solving',
-    isReasoning: true,
-    icon: Cpu,
-    category: 'Reasoning',
+  mistral: {
+    icon: Bot,
+    category: 'Mistral AI',
   },
-  {
-    value: 'o1-mini',
-    label: 'o1 Mini',
-    description: 'Faster variant of o1',
-    isReasoning: true,
-    icon: Cpu,
-    category: 'Reasoning',
+  deepseek: {
+    icon: Code,
+    category: 'DeepSeek',
   },
-  {
-    value: 'o3-mini',
-    label: 'o3 Mini',
-    description: 'Latest reasoning model with efficiency focus',
-    isReasoning: true,
-    icon: Cpu,
-    category: 'Reasoning',
+  cohere: {
+    icon: Star,
+    category: 'Cohere',
   },
-  {
-    value: 'gpt-3.5-turbo',
-    label: 'GPT-3.5 Turbo',
-    description: 'Fast and cost-effective chat model',
-    isReasoning: false,
-    icon: Zap,
-    category: 'Chat',
+  google: {
+    icon: Lightbulb,
+    category: 'Google AI',
   },
-]
+}
 
-export const ModelSelector = () => {
+// Create a flat array of all models with their metadata
+const ENHANCED_MODELS = availableModels.map(model => ({
+  ...model,
+  icon: MODEL_METADATA[model.provider]?.icon,
+  category: MODEL_METADATA[model.provider]?.category,
+}))
+
+const FeatureIcon = ({ feature, icon: Icon, label }) => (
+  <div
+    className={cn(
+      'flex items-center gap-1',
+      feature ? 'text-green-400' : 'text-gray-500'
+    )}
+    title={feature ? `Supports ${label}` : `No ${label} support`}
+  >
+    <Icon className='w-3 h-3' />
+  </div>
+)
+
+export const ModelSelector = ({ value, onChange }) => {
   const { currentModel, setCurrentModel } = useChatStore()
 
   const handleModelChange = value => {
-    const model = AVAILABLE_MODELS.find(m => m.value === value)
+    const model = ENHANCED_MODELS.find(m => m.value === value)
     setCurrentModel(model)
   }
 
   // Group models by category
-  const groupedModels = AVAILABLE_MODELS.reduce((acc, model) => {
+  const groupedModels = ENHANCED_MODELS.reduce((acc, model) => {
     if (!acc[model.category]) {
       acc[model.category] = []
     }
@@ -77,13 +87,22 @@ export const ModelSelector = () => {
     return acc
   }, {})
 
+  const renderIcon = Icon => {
+    if (!Icon) return null
+    return <Icon className='w-4 h-4 text-blue-400' />
+  }
+
+  const formatContextLength = length => {
+    if (length >= 1000000) return `${length / 1000000}M tokens`
+    if (length >= 1000) return `${length / 1000}K tokens`
+    return `${length} tokens`
+  }
+
   return (
     <Select value={currentModel?.value} onValueChange={handleModelChange}>
       <SelectTrigger className='w-[280px] bg-gray-800 border-gray-700 text-gray-100 hover:bg-gray-750 focus:ring-blue-500'>
         <div className='flex items-center gap-2'>
-          {currentModel?.icon && (
-            <currentModel.icon className='w-4 h-4 text-blue-400' />
-          )}
+          {currentModel?.icon && renderIcon(currentModel.icon)}
           <SelectValue placeholder='Select a model' className='text-gray-100' />
         </div>
       </SelectTrigger>
@@ -101,19 +120,32 @@ export const ModelSelector = () => {
               >
                 <div className='flex flex-col gap-1'>
                   <div className='flex items-center gap-2'>
-                    <model.icon className='w-4 h-4 text-blue-400' />
+                    {renderIcon(model.icon)}
                     <span className='font-medium text-gray-100'>
                       {model.label}
                     </span>
-                    {model.isReasoning && (
-                      <span className='px-1.5 py-0.5 text-xs bg-purple-900 text-purple-200 rounded'>
-                        Reasoning
-                      </span>
-                    )}
                   </div>
-                  <span className='text-xs text-gray-400 ml-6'>
-                    {model.description}
-                  </span>
+                  <div className='flex items-center gap-4 ml-6'>
+                    <span className='text-xs text-gray-400'>
+                      {model.description}
+                    </span>
+                  </div>
+                  <div className='flex items-center gap-2 ml-6 mt-1'>
+                    <FeatureIcon
+                      feature={model.features.tools}
+                      icon={Wrench}
+                      label='Tool calling'
+                    />
+                    <FeatureIcon
+                      feature={model.features.vision}
+                      icon={Eye}
+                      label='Vision'
+                    />
+                    <span className='text-xs text-gray-500 flex items-center gap-1'>
+                      <Boxes className='w-3 h-3' />
+                      {formatContextLength(model.features.contextLength)}
+                    </span>
+                  </div>
                 </div>
               </SelectItem>
             ))}
@@ -122,6 +154,17 @@ export const ModelSelector = () => {
       </SelectContent>
     </Select>
   )
+}
+
+ModelSelector.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func,
+}
+
+FeatureIcon.propTypes = {
+  feature: PropTypes.bool.isRequired,
+  icon: PropTypes.elementType.isRequired,
+  label: PropTypes.string.isRequired,
 }
 
 ModelSelector.displayName = 'ModelSelector'

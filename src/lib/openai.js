@@ -45,7 +45,7 @@ class OpenAIInstance {
       const stream = await this.client.chat.completions.create({
         model: model.value,
         messages,
-        stream: true
+        stream: true,
       })
 
       return this.streamWithBuffer(stream)
@@ -57,3 +57,4 @@ class OpenAIInstance {
 }
 
 export const openai = new OpenAIInstance()
+export default OpenAIInstance
